@@ -8,19 +8,19 @@ export default function Home() {
   const lastOrderIds = useRef(new Set());
   const audioCtx = useRef(null);
 
-  const unlockAudio = () => {
-    try {
-      if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
-      if (audioCtx.current.state === 'suspended') audioCtx.current.resume();
-      setSoundReady(true);
-    } catch (e) {}
+  const getCtx = async () => {
+    if (!audioCtx.current) {
+      audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.current.state === 'suspended') {
+      await audioCtx.current.resume();
+    }
+    return audioCtx.current;
   };
 
-  const playBeep = () => {
+  const playBeep = async () => {
     try {
-      if (!audioCtx.current) return;
-      const ctx = audioCtx.current;
-      if (ctx.state === 'suspended') ctx.resume();
+      const ctx = await getCtx();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
@@ -31,7 +31,19 @@ export default function Home() {
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.35);
-    } catch (e) {}
+    } catch (e) {
+      console.error('beep failed', e);
+    }
+  };
+
+  const enableSound = async () => {
+    try {
+      await getCtx();
+      setSoundReady(true);
+      await playBeep(); // test beep so user knows it works
+    } catch (e) {
+      console.error('enable sound failed', e);
+    }
   };
 
   const fetchData = async () => {
@@ -44,8 +56,7 @@ export default function Home() {
       if (ordRes.ok) {
         const newOrders = await ordRes.json();
         const currentIds = new Set(newOrders.map(o => o.id));
-        // Beep only for orders that appeared after the first load
-        if (lastOrderIds.current.size > 0) {
+        if (soundReady && lastOrderIds.current.size > 0) {
           for (const id of currentIds) {
             if (!lastOrderIds.current.has(id)) {
               playBeep();
@@ -63,15 +74,34 @@ export default function Home() {
     fetchData();
     const id = setInterval(fetchData, 2000);
     return () => clearInterval(id);
-  }, []);
+  }, [soundReady]);
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }} onClick={unlockAudio}>
+    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
       <h1 style={{ color: '#58a6ff', marginBottom: '10px' }}>TSBridge — Options Trading Monitor</h1>
       <p style={{ color: '#8b949e', marginBottom: '10px' }}>Realtime signals & orders (read-only). New orders play a sound.</p>
-      <p style={{ color: soundReady ? '#3fb950' : '#d29922', marginBottom: '30px', fontSize: '14px' }}>
-        {soundReady ? '● Sound enabled' : '⚠ Click anywhere on the page to enable sound'}
-      </p>
+
+      {!soundReady && (
+        <button
+          onClick={enableSound}
+          style={{
+            background: '#d29922',
+            color: '#0d1117',
+            border: 'none',
+            padding: '12px 24px',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            marginBottom: '20px'
+          }}
+        >
+          🔊 Click to Enable Sound (plays a test beep)
+        </button>
+      )}
+      {soundReady && (
+        <p style={{ color: '#3fb950', marginBottom: '20px', fontSize: '14px' }}>● Sound enabled</p>
+      )}
 
       <h2 style={{ color: '#3fb950' }}>Recent Orders</h2>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '40px' }}>
