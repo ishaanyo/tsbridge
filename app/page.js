@@ -27,10 +27,12 @@ export default function Home() {
       gain.connect(ctx.destination);
       osc.frequency.value = 880;
       osc.type = 'sine';
+      // 5 second beep
       gain.gain.setValueAtTime(0.4, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+      gain.gain.setValueAtTime(0.4, ctx.currentTime + 4.5);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 5);
       osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.35);
+      osc.stop(ctx.currentTime + 5);
     } catch (e) {
       console.error('beep failed', e);
     }
@@ -96,7 +98,7 @@ export default function Home() {
             marginBottom: '20px'
           }}
         >
-          🔊 Click to Enable Sound (plays a test beep)
+          🔊 Click to Enable Sound (plays a 5s test beep)
         </button>
       )}
       {soundReady && (
