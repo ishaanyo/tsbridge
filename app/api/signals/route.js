@@ -1,9 +1,14 @@
 import { neon } from '@neondatabase/serverless';
 
-const sql = neon(process.env.DATABASE_URL);
+function getSql() {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL is not set');
+  return neon(url);
+}
 
 export async function GET() {
   try {
+    const sql = getSql();
     const rows = await sql`SELECT * FROM signals ORDER BY created_at DESC LIMIT 100`;
     return Response.json(rows);
   } catch (e) {
@@ -13,6 +18,7 @@ export async function GET() {
 
 export async function POST(req) {
   try {
+    const sql = getSql();
     const { symbol, side, k_type, date, time, price } = await req.json();
     if (!symbol || !side) return Response.json({ error: 'symbol and side required' }, { status: 400 });
     const [row] = await sql`
