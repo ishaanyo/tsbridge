@@ -5,6 +5,8 @@ export default function Home() {
   const [signals, setSignals] = useState([]);
   const [orders, setOrders] = useState([]);
   const [soundReady, setSoundReady] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(null);
+  const [status, setStatus] = useState('loading');
   const lastOrderIds = useRef(new Set());
   const audioCtx = useRef(null);
 
@@ -27,7 +29,6 @@ export default function Home() {
       gain.connect(ctx.destination);
       osc.frequency.value = 880;
       osc.type = 'sine';
-      // 5 second beep
       gain.gain.setValueAtTime(0.4, ctx.currentTime);
       gain.gain.setValueAtTime(0.4, ctx.currentTime + 4.5);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 5);
@@ -42,7 +43,7 @@ export default function Home() {
     try {
       await getCtx();
       setSoundReady(true);
-      await playBeep(); // test beep so user knows it works
+      await playBeep();
     } catch (e) {
       console.error('enable sound failed', e);
     }
@@ -50,9 +51,10 @@ export default function Home() {
 
   const fetchData = async () => {
     try {
+      const bust = Date.now();
       const [sigRes, ordRes] = await Promise.all([
-        fetch('/api/signals'),
-        fetch('/api/orders')
+        fetch(`/api/signals?_=${bust}`, { cache: 'no-store' }),
+        fetch(`/api/orders?_=${bust}`, { cache: 'no-store' })
       ]);
       if (sigRes.ok) setSignals(await sigRes.json());
       if (ordRes.ok) {
@@ -68,8 +70,15 @@ export default function Home() {
         }
         lastOrderIds.current = currentIds;
         setOrders(newOrders);
+        setStatus('ok');
+        setLastUpdate(new Date());
+      } else {
+        setStatus('api error ' + ordRes.status);
       }
-    } catch (e) {}
+    } catch (e) {
+      setStatus('fetch failed');
+      console.error(e);
+    }
   };
 
   useEffect(() => {
@@ -81,7 +90,10 @@ export default function Home() {
   return (
     <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
       <h1 style={{ color: '#58a6ff', marginBottom: '10px' }}>TSBridge — Options Trading Monitor</h1>
-      <p style={{ color: '#8b949e', marginBottom: '10px' }}>Realtime signals & orders (read-only). New orders play a sound.</p>
+      <p style={{ color: '#8b949e', marginBottom: '6px' }}>Realtime signals & orders (read-only). New orders play a sound.</p>
+      <p style={{ color: status === 'ok' ? '#3fb950' : '#f85149', marginBottom: '16px', fontSize: '13px' }}>
+        Status: {status} {lastUpdate && `| Last updated: ${lastUpdate.toLocaleTimeString()}`}
+      </p>
 
       {!soundReady && (
         <button
@@ -105,7 +117,7 @@ export default function Home() {
         <p style={{ color: '#3fb950', marginBottom: '20px', fontSize: '14px' }}>● Sound enabled</p>
       )}
 
-      <h2 style={{ color: '#3fb950' }}>Recent Orders</h2>
+      <h2 style={{ color: '#3fb950' }}>Recent Orders ({orders.length})</h2>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '40px' }}>
         <thead>
           <tr style={{ background: '#161b22' }}>
@@ -128,7 +140,7 @@ export default function Home() {
         </tbody>
       </table>
 
-      <h2 style={{ color: '#d29922' }}>Recent Signals</h2>
+      <h2 style={{ color: '#d29922' }}>Recent Signals ({signals.length})</h2>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ background: '#161b22' }}>
