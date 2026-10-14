@@ -4,23 +4,33 @@ import { useEffect, useState, useRef } from 'react';
 export default function Home() {
   const [signals, setSignals] = useState([]);
   const [orders, setOrders] = useState([]);
-  const lastOrderCount = useRef(0);
+  const [soundReady, setSoundReady] = useState(false);
+  const lastOrderIds = useRef(new Set());
   const audioCtx = useRef(null);
+
+  const unlockAudio = () => {
+    try {
+      if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.current.state === 'suspended') audioCtx.current.resume();
+      setSoundReady(true);
+    } catch (e) {}
+  };
 
   const playBeep = () => {
     try {
-      if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)();
+      if (!audioCtx.current) return;
       const ctx = audioCtx.current;
+      if (ctx.state === 'suspended') ctx.resume();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.frequency.value = 880;
       osc.type = 'sine';
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+      gain.gain.setValueAtTime(0.4, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
       osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.3);
+      osc.stop(ctx.currentTime + 0.35);
     } catch (e) {}
   };
 
@@ -33,10 +43,17 @@ export default function Home() {
       if (sigRes.ok) setSignals(await sigRes.json());
       if (ordRes.ok) {
         const newOrders = await ordRes.json();
-        if (newOrders.length > lastOrderCount.current) {
-          playBeep();
+        const currentIds = new Set(newOrders.map(o => o.id));
+        // Beep only for orders that appeared after the first load
+        if (lastOrderIds.current.size > 0) {
+          for (const id of currentIds) {
+            if (!lastOrderIds.current.has(id)) {
+              playBeep();
+              break;
+            }
+          }
         }
-        lastOrderCount.current = newOrders.length;
+        lastOrderIds.current = currentIds;
         setOrders(newOrders);
       }
     } catch (e) {}
@@ -49,9 +66,12 @@ export default function Home() {
   }, []);
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }} onClick={unlockAudio}>
       <h1 style={{ color: '#58a6ff', marginBottom: '10px' }}>TSBridge — Options Trading Monitor</h1>
-      <p style={{ color: '#8b949e', marginBottom: '30px' }}>Realtime signals & orders (read-only). New orders play a sound.</p>
+      <p style={{ color: '#8b949e', marginBottom: '10px' }}>Realtime signals & orders (read-only). New orders play a sound.</p>
+      <p style={{ color: soundReady ? '#3fb950' : '#d29922', marginBottom: '30px', fontSize: '14px' }}>
+        {soundReady ? '● Sound enabled' : '⚠ Click anywhere on the page to enable sound'}
+      </p>
 
       <h2 style={{ color: '#3fb950' }}>Recent Orders</h2>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '40px' }}>
